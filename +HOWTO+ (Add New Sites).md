@@ -104,11 +104,25 @@ Set-Location "C:\Dev\+YouTubeDownloader_(yt-dlp)+"
 hatch test YourExtractor
 ```
 
+> **CRITICAL — the test name is derived mechanically from your class name:** `hatch test` takes its argument verbatim and prefixes it with `test_`, then looks for that method on `TestDownload` in `test\test_download.py`. The framework auto-generates one test method per registered extractor, named `test_<ClassName-without-IE-suffix>`. So:
+>
+> | Your class | The test method | The hatch command |
+> |---|---|---|
+> | `YourExtractorIE` | `test_YourExtractor` | `hatch test YourExtractor` |
+> | `ColliderPornIE` | `test_ColliderPorn` | `hatch test ColliderPorn` |
+> | `MySiteIE` | `test_MySite` | `hatch test MySite` |
+>
+> **Case matters.** `hatch test colliderporn` looks for `test_colliderporn`, fails. The framework preserves the class's case exactly.
+>
+> Symptom of getting the name wrong: `collected 0 items`, `no tests ran`, and an error like *"not found: ...::test_<your-arg>"* with *"no match in any of [<UnitTestCase TestDownload>]"*. The test discovery is working fine — you just asked for a method that doesn't exist.
+
 The test may fail at first — that's expected. The failure output prints the missing/incorrect fields you can copy back into `_TESTS[0]['info_dict']`. Re-run until it's green.
 
-- **Multiple tests:** if `_TESTS` has more than one entry, they're named `YourExtractor`, `YourExtractor_1`, `YourExtractor_2`, …
+- **Multiple tests:** if `_TESTS` has more than one entry, they're named `YourExtractor`, `YourExtractor_1`, `YourExtractor_2`, … `_TESTS[0]` is what `hatch test YourExtractor` runs solo — put the most exhaustive test there.
 - **`only_matching: True` tests** are URL-pattern-only and don't count in the numbered series.
-- **Run all of them in one go:** `hatch test YourExtractor_all`.
+- **Run all of them in one go:** `hatch test YourExtractor_all` (e.g. `hatch test ColliderPorn_all`).
+- **`_all` reports "1 passed" even when multiple sub-tests ran** — that's pytest counting test methods, not internal sub-calls. The single `test_YourExtractor_all` method invokes all the numbered sub-tests via `getattr`. Use `pytest -v -s ...` for per-sub-test output, or run them individually to confirm.
+- **Stale `lazy_extractors.py`:** after rebuilding `yt-dlp.exe` (which auto-generates `yt_dlp\extractor\lazy_extractors.py`), the live test discovery uses that cached file. If you add a NEW extractor after a rebuild, either: (a) delete `lazy_extractors.py`, (b) re-run `& ".\.venv\Scripts\python.exe" devscripts\make_lazy_extractors.py`, or (c) skip the issue entirely by running tests BEFORE rebuilding. If `lazy_extractors.py` is absent (its default state in a fresh checkout), the live `_extractors.py` is enumerated and your edits are picked up immediately.
 
 **Alternatives that don't go through `hatch`** (both work, the dev install gave us pytest and the run_tests wrapper):
 
@@ -179,6 +193,26 @@ Use `hatch fmt` (no `--check`) to automatically fix what's fixable.
 ```
 
 > **Note (yt-dlp style worth remembering):** single-quote strings, double-quote docstrings, soft line-limit 100 chars (hard 120), `fatal=False` on optional regex extracts, prefer relaxed HTML regexes (`<span[^>]+class="title"[^>]*>([^<]+)`) over brittle exact-match patterns (`<span class="title">(.*?)</span>`) — extractor patterns rot the moment the site touches its markup.
+
+> **GOTCHA (test-mode warning-to-error conversion):** the test harness at `test\test_download.py:50` overrides `report_warning` to **raise `ExtractorError` on any warning**. This means any extraction helper that emits a "couldn't find X" warning will *kill the test*, even though it would silently return `None` during a normal run. Affected helpers: `_og_search_*`, `_html_search_regex`, `_html_search_meta`, `_search_regex`, anything that takes a `name` argument and reports a miss.
+>
+> **`fatal=False` alone is NOT enough.** It prevents the raise but still emits the warning. To be test-clean, pass `default=<value>` (typically `None`) for fields that may be absent on some pages:
+>
+> ```python
+> # WRONG — fails in tests if og:description isn't on the page:
+> 'description': self._og_search_description(webpage),
+>
+> # RIGHT — returns None silently on miss, no warning:
+> 'description': self._og_search_description(webpage, default=None),
+>
+> # Also right — multi-source fallback, last one fatal:
+> title = (
+>     self._og_search_title(webpage, default=None)
+>     or self._html_extract_title(webpage, fatal=True)
+> )
+> ```
+>
+> Rule of thumb: any extraction call where the field is **optional** needs `default=None`; any extraction call where the field is **required** (would make the whole result useless if missing) should be `fatal=True` so the test fails with a clear error message instead of silently returning a broken info_dict.
 
 ## 10. Python-version compatibility
 

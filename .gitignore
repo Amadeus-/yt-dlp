@@ -133,3 +133,5 @@ yt-dlp-plugins
 # Packages
 yt_dlp_ejs/
 /downloaded.txt
+/yt-dlp.exe.bak
+/+Build yt-dlp+.bat

@@ -383,6 +383,7 @@ from .cnn import (
     CNNIE,
     CNNIndonesiaIE,
 )
+from .colliderporn import ColliderPornIE
 from .comedycentral import ComedyCentralIE
 from .commonmistakes import (
     BlobIE,
@@ -806,6 +807,7 @@ from .hypem import HypemIE
 from .hypergryph import MonsterSirenHypergryphMusicIE
 from .hytale import HytaleIE
 from .icareus import IcareusIE
+from .iceporn import IcePornIE
 from .ichinanalive import (
     IchinanaLiveClipIE,
     IchinanaLiveIE,
